@@ -1,0 +1,183 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <vector>
+
+const char* ssid = "BipBotS1";
+const char* password = "bb12345678";
+
+WebServer server(80);
+
+struct DataRecord {
+  String clientIP;
+  String value;
+  unsigned long timestamp;
+};
+
+std::vector<DataRecord> records;
+
+// ฟังก์ชันแปลงเวลา
+String formatTime(unsigned long ms) {
+  unsigned long sec = ms / 1000;
+  unsigned long min = (sec / 60) % 60;
+  unsigned long hr = (sec / 3600) % 24;
+  sec = sec % 60;
+  char buf[16];
+  sprintf(buf, "%02lu:%02lu:%02lu", hr, min, sec);
+  return String(buf);
+}
+
+// --- หน้าแรก: Dashboard ---
+void handleRoot() {
+  String html = R"rawliteral(
+  <!DOCTYPE html>
+  <html>
+  <head>
+  <meta charset='UTF-8'>
+  <title>ESP32 Dashboard</title>
+  <style>
+  body { font-family: Arial; margin: 30px; background:#fafafa; }
+  h2 { color:#2196F3; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  th { background: #2196F3; color:white; }
+  tr:nth-child(even){background:#f2f2f2;}
+  a { color:#2196F3; text-decoration:none; font-weight:bold; }
+  </style>
+  <script>
+  function updateTable() {
+    fetch('/latest').then(r => r.text()).then(t => {
+      document.getElementById('tableBody').innerHTML = t;
+    });
+    setTimeout(updateTable, 2000);
+  }
+  window.onload = updateTable;
+  </script>
+  </head>
+  <body>
+  <h2>ESP32 Server Dashboard</h2>
+  <p><a href='/log'>Go to LOG Monitoring</a></p>
+  <table>
+  <thead><tr><th>#</th><th>Client IP</th><th>Latest Value</th><th>Time</th></tr></thead>
+  <tbody id='tableBody'></tbody>
+  </table>
+  </body>
+  </html>
+  )rawliteral";
+  server.send(200, "text/html", html);
+}
+
+// --- หน้า Log Monitoring ---
+void handleLogPage() {
+  String html = R"rawliteral(
+  <!DOCTYPE html>
+  <html>
+  <head>
+  <meta charset='UTF-8'>
+  <title>ESP32 Log Monitoring</title>
+  <style>
+  body { font-family: Arial; margin: 30px; background:#fafafa; }
+  h2 { color:#2196F3; }
+  button { margin: 5px; padding: 8px 16px; border:none; border-radius:6px; cursor:pointer; font-weight:bold; }
+  .btn { background:#2196F3; color:white; }
+  .btn:hover { background:#1976D2; }
+  table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+  th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+  th { background: #2196F3; color:white; }
+  tr:nth-child(even){background:#f2f2f2;}
+  a { color:#2196F3; text-decoration:none; font-weight:bold; }
+  </style>
+  <script>
+  let paused = false;
+  function updateLog() {
+    if (paused) return;
+    fetch('/logdata').then(r => r.text()).then(t => {
+      document.getElementById('logBody').innerHTML = t;
+    });
+    setTimeout(updateLog, 2000);
+  }
+  function togglePause(){
+    paused = !paused;
+    document.getElementById('pauseBtn').innerText = paused ? 'Resume Auto Refresh' : 'Pause Auto Refresh';
+    if (!paused) updateLog();
+  }
+  function clearLog(){ fetch('/clear'); }
+  window.onload = updateLog;
+  </script>
+  </head>
+  <body>
+  <h2>LOG Monitoring</h2>
+  <p><a href='/'>Back to Dashboard</a></p>
+  <button class='btn' id='pauseBtn' onclick='togglePause()'>Pause Auto Refresh</button>
+  <button class='btn' onclick='clearLog()'>Clear Log</button>
+  <table>
+  <thead><tr><th>#</th><th>Client IP</th><th>Value</th><th>Time</th></tr></thead>
+  <tbody id='logBody'></tbody>
+  </table>
+  </body>
+  </html>
+  )rawliteral";
+  server.send(200, "text/html", html);
+}
+
+// --- ข้อมูลค่าล่าสุด ---
+void handleLatest() {
+  String html;
+  std::vector<String> shownIPs;
+
+  for (int i = records.size() - 1; i >= 0; i--) {
+    String ip = records[i].clientIP;
+    if (std::find(shownIPs.begin(), shownIPs.end(), ip) == shownIPs.end()) {
+      html += "<tr><td>" + String(shownIPs.size() + 1) + "</td><td>" + ip + "</td><td>" +
+              records[i].value + "</td><td>" + formatTime(millis() - records[i].timestamp) + " ago</td></tr>";
+      shownIPs.push_back(ip);
+    }
+  }
+  server.send(200, "text/html", html);
+}
+
+// --- Log Data ทั้งหมด ---
+void handleLogData() {
+  String html;
+  for (int i = records.size() - 1; i >= 0; i--) {
+    html += "<tr><td>" + String(i + 1) + "</td><td>" + records[i].clientIP + "</td><td>" +
+            records[i].value + "</td><td>" + formatTime(millis() - records[i].timestamp) + " ago</td></tr>";
+  }
+  server.send(200, "text/html", html);
+}
+
+// --- ล้าง Log ---
+void handleClear() {
+  records.clear();
+  server.send(200, "text/plain", "Cleared");
+}
+
+// --- รับข้อมูลจาก Client ---
+void handleData() {
+  String value = server.arg("value");
+  String ip = server.client().remoteIP().toString();
+  DataRecord rec = {ip, value, millis()};
+  records.push_back(rec);
+  Serial.printf("Received from %s: %s\n", ip.c_str(), value.c_str());
+  server.send(200, "text/plain", "OK");
+}
+
+// --- Setup ---
+void setup() {
+  Serial.begin(115200);
+  WiFi.softAP(ssid, password);
+  Serial.print("AP IP: ");
+  Serial.println(WiFi.softAPIP());
+
+  server.on("/", handleRoot);
+  server.on("/log", handleLogPage);
+  server.on("/latest", handleLatest);
+  server.on("/logdata", handleLogData);
+  server.on("/clear", handleClear);
+  server.on("/data", handleData);
+  server.begin();
+  Serial.println("Server started");
+}
+
+void loop() {
+  server.handleClient();
+}
