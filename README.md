@@ -1,4 +1,4 @@
-<h1 style="font-size: 2rem;">Atlas_Bip-Bot Ver 25.10.r</h1>
+<h1 style="font-size: 2rem;">Atlas Intention Bip-Bot</h1>
 <h2 style="font-size: 2rem;">Bip Bot S1 Series Ver 25.10.1</h2>
 <h3 style="font-size: 2rem;">
 Board : " ESP32 Nano Pro "<br><br>
