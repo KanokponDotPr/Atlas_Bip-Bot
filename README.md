@@ -4,7 +4,7 @@
 *----------------------------------------------*
 *----------------------------------------------*
 
-Bip Bot S1 Series Ver 25.10.1
+Bip Bot S1 Series Ver 25.10.1 
 Board : Nano ESP32
 Component Build-in : 
 1) Buzzer
