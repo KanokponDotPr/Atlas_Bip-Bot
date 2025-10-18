@@ -1,0 +1,145 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <EEPROM.h>
+
+#define EEPROM_SIZE 128
+
+WebServer server(80);
+
+struct Config {
+  char ssid[32];
+  char password[32];
+  char serverIP[16];
+};
+
+Config config;
+bool configMode = false;
+
+// --------------------- EEPROM ---------------------
+void loadConfig() {
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.get(0, config);
+  EEPROM.end();
+
+  if (strlen(config.ssid) == 0) {
+    strcpy(config.ssid, "BipbotC1b_Name");
+    strcpy(config.password, "BipbotC1b_Password");
+    strcpy(config.serverIP, "192.168.4.1");  // ค่า default
+  }
+}
+
+void saveConfig() {
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.put(0, config);
+  EEPROM.commit();
+  EEPROM.end();
+  Serial.println("💾 Config saved to EEPROM");
+}
+
+// --------------------- Web UI ---------------------
+void handleRoot() {
+  String html = "<html><body><h2>BipBot C1b Config</h2>"
+                "<form action='/save' method='post'>"
+                "WiFi SSID: <input name='ssid' value='" + String(config.ssid) + "'><br><br>"
+                "Password: <input name='password' type='password' value='" + String(config.password) + "'><br><br>"
+                "Server IP: <input name='serverIP' value='" + String(config.serverIP) + "'><br><br>"
+                "<input type='submit' value='Save & Connect'>"
+                "</form></body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleSave() {
+  String ssid = server.arg("ssid");
+  String password = server.arg("password");
+  String serverIP = server.arg("serverIP");
+
+  ssid.toCharArray(config.ssid, sizeof(config.ssid));
+  password.toCharArray(config.password, sizeof(config.password));
+  serverIP.toCharArray(config.serverIP, sizeof(config.serverIP));
+
+  saveConfig();
+  server.send(200, "text/html", "<html><body><h3>✅ Saved! Rebooting...</h3></body></html>");
+  delay(2000);
+  ESP.restart();
+}
+
+// --------------------- Config Mode ---------------------
+void startConfigMode() {
+  configMode = true;
+
+  IPAddress local_IP(192, 168, 4, 240);   // ตั้ง IP เอง
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+  WiFi.softAP("BipBotC1b", "bb12345678");
+
+  Serial.println("🔧 Config Mode Active");
+  Serial.print("AP IP: ");
+  Serial.println(WiFi.softAPIP());
+
+  server.on("/", handleRoot);
+  server.on("/save", handleSave);
+  server.begin();
+  Serial.println("🌐 HTTP server started (config mode)");
+}
+
+// --------------------- Connect to WiFi ---------------------
+void connectToWiFi() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(config.ssid, config.password);
+
+  Serial.print("Connecting to WiFi ");
+  Serial.println(config.ssid);
+
+  unsigned long startAttemptTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Connected!");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n⚠️ Failed to connect. Switching to config mode.");
+    startConfigMode();
+  }
+}
+
+// --------------------- Setup ---------------------
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  loadConfig();
+
+  if (strlen(config.ssid) == 0) {
+    Serial.println("⚙️ No config found, entering setup mode.");
+    startConfigMode();
+  } else {
+    connectToWiFi();
+  }
+}
+
+// --------------------- Loop ---------------------
+void loop() {
+  if (configMode) {
+    server.handleClient();
+  } else {
+    WiFiClient client;
+    if (client.connect(config.serverIP, 80)) {
+      String url = "/data?value=" + String(random(0, 100));
+      client.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                   "Host: " + config.serverIP + "\r\n" +
+                   "Connection: close\r\n\r\n");
+      Serial.println("📤 Sent value to server: " + url);
+      client.stop();
+    } else {
+      Serial.println("❌ Failed to connect to server");
+    }
+    delay(5000);
+  }
+}
