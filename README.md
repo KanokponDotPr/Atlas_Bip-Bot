@@ -3,7 +3,7 @@
 <h3 style="font-size: 2rem;">
 Board : " ESP32 Nano Pro "<br><br>
 Defult Config IP : " 192.168.4.1 "<br><br>
-Defult SSID : " BipBot_S1 "<br><br>
+Defult SSID : " BipBotS1 "<br><br>
 </h3>  
 <!--1) Buzzer<br>
 2) RGB Led for show Satatus<br>
@@ -42,13 +42,13 @@ A7/24/14<br>
 <h3 style="font-size: 2rem;">
 Board : " ESP8266 "<br><br>
 Defult Config IP : " 192.168.4.1 "<br><br>
-Defult SSID : " BipBot_C1a "<br><br>
+Defult SSID : " BipBotC1a "<br><br>
 </h3> 
 
 <h2 style="font-size: 2rem;">Bip Bot C1b Series Ver 25.10.1</h2>
 <h3 style="font-size: 2rem;">
 Board : " ESP32 Super Mini C1b "<br><br>
 Defult Config IP : " 192.168.4.1 "<br><br>
-Defult SSID : " BipBot_C1b "<br><br>
+Defult SSID : " BipBotC1b "<br><br>
 </h3> 
 
