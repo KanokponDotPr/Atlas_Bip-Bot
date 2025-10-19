@@ -73,7 +73,7 @@ void startConfigMode() {
 
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(local_IP, gateway, subnet);
-  WiFi.softAP("BipBotC1b", "bb12345678");
+  WiFi.softAP("BipBotC1#ID", "bb12345678"); //<--- Input CHIP ID
 
   Serial.println("🔧 Config Mode Active");
   Serial.print("AP IP: ");
